@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Jogo do Carro</title>
+  <style>
+    body { 
+      margin:0; 
+      background:#111; 
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      height:100vh;
+    }
+    canvas { 
+      background:linear-gradient(#222,#000); 
+      margin-top:20px;
+    }
+
+    /* título e dica */
+    #hud {
+      text-align: center;
+      color: white;
+      font-family: Arial, sans-serif;
+      margin-bottom: 15px;
+    }
+    #hud h1 {
+      margin: 0;
+      font-size: 2.5em;
+      color: #ff4d6d;
+      text-shadow: 0 0 10px #ff4d6d;
+    }
+    #hud p {
+      margin: 5px 0 0;
+      font-size: 1.2em;
+      color: #ddd;
+    }
+
+    /* controles */
+    #controles {
+      position: fixed;
+      bottom: 20px;
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+      pointer-events: none;
+    }
+
+    #controles button {
+      pointer-events: all;
+      background: rgba(255,255,255,0.2);
+      border: 2px solid white;
+      color: white;
+      font-size: 2em;
+      border-radius: 50%;
+      width: 70px;
+      height: 70px;
+      box-shadow: 0 0 15px rgba(255,0,0,0.7);
+      cursor: pointer;
+    }
+
+    /* efeito da mensagem final */
+    .final {
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      height:100vh;
+      color:white;
+      text-align:center;
+      animation: fadeIn 2s ease forwards;
+      background: transparent;
+    }
+    .final h1 {
+      font-size:3em;
+      color:#ff4d6d;
+      animation:pulse 1.5s infinite;
+      text-shadow:0 0 20px #ff4d6d;
+    }
+    .final p {
+      max-width:600px;
+      font-size:1.3em;
+      margin-top:20px;
+    }
+    .final a {
+      margin-top:20px;
+      color:#fff;
+      background:#ff4d6d;
+      padding:10px 20px;
+      border-radius:10px;
+      text-decoration:none;
+      font-weight:bold;
+      box-shadow:0 0 10px #ff4d6d;
+    }
+    @keyframes pulse { 
+      0%{transform:scale(1)} 
+      50%{transform:scale(1.1)} 
+      100%{transform:scale(1)} 
+    }
+    @keyframes fadeIn {
+      from { opacity:0; transform:translateY(20px); }
+      to { opacity:1; transform:translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <h1>🚗 Jogo do Carro</h1>
+    <p>Dica: pegue os corações ❤️ e evite perder!</p>
+  </div>
+
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="controles">
+    <button id="btnEsquerda">⬅️</button>
+    <button id="btnDireita">➡️</button>
+  </div>
+
+  <script>
+    const canvas=document.getElementById("gameCanvas");
+    const ctx=canvas.getContext("2d");
+    canvas.width=500;  // largura maior
+    canvas.height=700; // altura maior
+
+    // imagens
+    const carroImg=new Image();
+    carroImg.src="carro.png";
+
+    const coracaoImg=new Image();
+    coracaoImg.src="coracao.webp";
+
+    let carro={x:canvas.width/2-25,y:600,w:50,h:90,speed:6};
+    let esquerda=false,direita=false;
+    let obstaculos=[];
+    let pontos=0;
+    let gameOver=false;
+    let coracoesCriados=0;
+    let jogoAtivo=false;
+
+    // controles
+    const btnEsquerda = document.getElementById("btnEsquerda");
+    const btnDireita = document.getElementById("btnDireita");
+
+    // mobile
+    btnEsquerda.addEventListener("touchstart", ()=>esquerda=true);
+    btnEsquerda.addEventListener("touchend", ()=>esquerda=false);
+    btnDireita.addEventListener("touchstart", ()=>direita=true);
+    btnDireita.addEventListener("touchend", ()=>direita=false);
+
+    // desktop
+    btnEsquerda.addEventListener("mousedown", ()=>esquerda=true);
+    btnEsquerda.addEventListener("mouseup", ()=>esquerda=false);
+    btnDireita.addEventListener("mousedown", ()=>direita=true);
+    btnDireita.addEventListener("mouseup", ()=>direita=false);
+
+    document.addEventListener("keydown",e=>{
+      if(e.key==="ArrowLeft") esquerda=true;
+      if(e.key==="ArrowRight") direita=true;
+    });
+    document.addEventListener("keyup",e=>{
+      if(e.key==="ArrowLeft") esquerda=false;
+      if(e.key==="ArrowRight") direita=false;
+    });
+
+    function criarObstaculo(){
+      let tamanho=50;
+      let x=Math.random()*(canvas.width-tamanho);
+      obstaculos.push({x,y:-tamanho,w:tamanho,h:tamanho});
+      coracoesCriados++;
+    }
+
+    function atualizar(){
+      if(gameOver) return;
+
+      if(esquerda&&carro.x>0) carro.x-=carro.speed;
+      if(direita&&carro.x<canvas.width-carro.w) carro.x+=carro.speed;
+
+      for(let o of obstaculos){ o.y+=4; }
+      obstaculos=obstaculos.filter(o=>o.y<canvas.height+50);
+
+      for(let o of obstaculos){
+        if(carro.x<o.x+o.w&&carro.x+carro.w>o.x&&carro.y<o.y+o.h&&carro.y+carro.h>o.y){
+          if(coracoesCriados>=23){
+            gameOver=true;
+            setTimeout(surpresaFinal,1000);
+          }
+        }
+      }
+
+      pontos++;
+      if(jogoAtivo && pontos%180===0) criarObstaculo();
+    }
+
+    function desenhar(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+
+      // pista centralizada
+      ctx.fillStyle="#444";
+      ctx.fillRect(100,0,canvas.width-200,canvas.height);
+
+      ctx.fillStyle="#fff";
+      for(let i=0;i<canvas.height;i+=40){
+        ctx.fillRect(canvas.width/2-5,i,10,20);
+      }
+
+      ctx.drawImage(carroImg,carro.x,carro.y,carro.w,carro.h);
+
+      for(let o of obstaculos){
+        ctx.drawImage(coracaoImg,o.x,o.y,o.w,o.h);
+      }
+
+      ctx.fillStyle="yellow";
+      ctx.font="20px Arial";
+      ctx.fillText("Pontos: "+pontos,10,30);
+      ctx.fillText("Corações: "+coracoesCriados,10,55);
+    }
+
+    function loop(){
+      atualizar();
+      desenhar();
+      if(!gameOver) requestAnimationFrame(loop);
+    }
+
+    loop();
+    setTimeout(()=>{ jogoAtivo=true; },5000);
+
+    function surpresaFinal(){
+      document.body.innerHTML=`
+        <div class="final">
+          <h1>💖 Surpresa Final 💖</h1>
+          <p>
+            Você venceu pegou todos os 23 corações!  
+            <br><br>
+            Jana, você é incrível. Esse jogo foi só um jeitinho bobo de te mostrar o quanto eu penso em você.  
+            <br><br>
+            Obrigado por existir, feliz aniversário! 🎉💖
+          </p>
+          <a href="index.html">Voltar para o início</a>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
