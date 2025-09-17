@@ -128,7 +128,7 @@
 <!-- Página 2 -->
 <div class="carta" id="carta2">
   <p id="texto2"></p>
-  <button class="next-btn" onclick="window.location.href='jogo.html'">Ir para o jogo 🚗</button>
+  <button class="next-btn" id="next2">Ir para o jogo 🚗</button>
 
 </div>
 
@@ -250,6 +250,10 @@ Will`;
       escreverTexto(textoPagina2,"texto2","next2");
     },1000);
   });
+
+document.getElementById("next2").addEventListener("click", () => {
+  window.location.href = "jogo.html";
+});
 
 </script>
 </body>

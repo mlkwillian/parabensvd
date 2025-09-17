@@ -107,7 +107,7 @@
 <body>
   <div id="hud">
     <h1>🚗 Jogo do Carro</h1>
-    <p>Dica: pegue os corações ❤️ e evite perder!</p>
+    <p>Dica: pegue os corações ❤️ — cada batida conta como ponto!</p>
   </div>
 
   <canvas id="gameCanvas"></canvas>
@@ -123,6 +123,10 @@
     canvas.width=500;  // largura maior
     canvas.height=700; // altura maior
 
+    // pista (para centralizar limites)
+    const trackX = 100;
+    const trackW = canvas.width - 200;
+
     // imagens
     const carroImg=new Image();
     carroImg.src="carro.png";
@@ -130,29 +134,40 @@
     const coracaoImg=new Image();
     coracaoImg.src="coracao.webp";
 
-    let carro={x:canvas.width/2-25,y:600,w:50,h:90,speed:6};
+    // carro centralizado na pista
+    let carro={x: trackX + trackW/2 - 25, y:600, w:50, h:90, speed:6};
     let esquerda=false,direita=false;
     let obstaculos=[];
-    let pontos=0;
+    let pontos=0;              // agora representa colisões (hits)
     let gameOver=false;
-    let coracoesCriados=0;
     let jogoAtivo=false;
+
+    const heartSize = 50;
+    const heartSpeed = 4;
+    const spawnIntervalFrames = 180; // ~3s
+    const targetHits = 23; // vitória ao pegar 23 corações
+
+    let frameCount = 0;
 
     // controles
     const btnEsquerda = document.getElementById("btnEsquerda");
     const btnDireita = document.getElementById("btnDireita");
 
-    // mobile
-    btnEsquerda.addEventListener("touchstart", ()=>esquerda=true);
-    btnEsquerda.addEventListener("touchend", ()=>esquerda=false);
-    btnDireita.addEventListener("touchstart", ()=>direita=true);
-    btnDireita.addEventListener("touchend", ()=>direita=false);
+    // mobile (prevent default para evitar scroll)
+    btnEsquerda.addEventListener("touchstart", (e)=>{ e.preventDefault(); esquerda=true; });
+    btnEsquerda.addEventListener("touchend", (e)=>{ e.preventDefault(); esquerda=false; });
+    btnDireita.addEventListener("touchstart", (e)=>{ e.preventDefault(); direita=true; });
+    btnDireita.addEventListener("touchend", (e)=>{ e.preventDefault(); direita=false; });
 
-    // desktop
+    // desktop (mousedown segura, mouseup solta)
     btnEsquerda.addEventListener("mousedown", ()=>esquerda=true);
     btnEsquerda.addEventListener("mouseup", ()=>esquerda=false);
     btnDireita.addEventListener("mousedown", ()=>direita=true);
     btnDireita.addEventListener("mouseup", ()=>direita=false);
+
+    // garante que soltar fora também pare o movimento
+    document.addEventListener("mouseup", ()=>{ esquerda=false; direita=false; });
+    document.addEventListener("touchcancel", ()=>{ esquerda=false; direita=false; });
 
     document.addEventListener("keydown",e=>{
       if(e.key==="ArrowLeft") esquerda=true;
@@ -164,32 +179,52 @@
     });
 
     function criarObstaculo(){
-      let tamanho=50;
-      let x=Math.random()*(canvas.width-tamanho);
-      obstaculos.push({x,y:-tamanho,w:tamanho,h:tamanho});
-      coracoesCriados++;
+      let tamanho = heartSize;
+      let x = trackX + Math.random() * (trackW - tamanho);
+      obstaculos.push({x, y: -tamanho, w: tamanho, h: tamanho});
     }
 
     function atualizar(){
       if(gameOver) return;
 
-      if(esquerda&&carro.x>0) carro.x-=carro.speed;
-      if(direita&&carro.x<canvas.width-carro.w) carro.x+=carro.speed;
+      // mover carro dentro da pista
+      if(esquerda && carro.x > trackX) carro.x -= carro.speed;
+      if(direita && carro.x < trackX + trackW - carro.w) carro.x += carro.speed;
 
-      for(let o of obstaculos){ o.y+=4; }
-      obstaculos=obstaculos.filter(o=>o.y<canvas.height+50);
+      // mover corações e checar colisões (iterar de trás para frente para remover com segurança)
+      for(let i = obstaculos.length - 1; i >= 0; i--){
+        const o = obstaculos[i];
+        o.y += heartSpeed;
 
-      for(let o of obstaculos){
-        if(carro.x<o.x+o.w&&carro.x+carro.w>o.x&&carro.y<o.y+o.h&&carro.y+carro.h>o.y){
-          if(coracoesCriados>=23){
-            gameOver=true;
-            setTimeout(surpresaFinal,1000);
-          }
+        // colisão simples AABB
+        if(carro.x < o.x + o.w &&
+           carro.x + carro.w > o.x &&
+           carro.y < o.y + o.h &&
+           carro.y + carro.h > o.y) {
+             // colisão: conta ponto e remove o coração
+             pontos++;
+             obstaculos.splice(i,1);
+
+             // final se bateu o suficiente
+             if(pontos >= targetHits){
+               gameOver = true;
+               setTimeout(surpresaFinal, 800);
+               return;
+             }
+             continue; // passa pro próximo obstáculo
+        }
+
+        // remove corações que saem do canvas
+        if(o.y > canvas.height + 50){
+          obstaculos.splice(i,1);
         }
       }
 
-      pontos++;
-      if(jogoAtivo && pontos%180===0) criarObstaculo();
+      // controle de spawn por frames (inicia só depois de jogoAtivo true)
+      frameCount++;
+      if(jogoAtivo && frameCount % spawnIntervalFrames === 0){
+        criarObstaculo();
+      }
     }
 
     function desenhar(){
@@ -197,23 +232,38 @@
 
       // pista centralizada
       ctx.fillStyle="#444";
-      ctx.fillRect(100,0,canvas.width-200,canvas.height);
+      ctx.fillRect(trackX,0,trackW,canvas.height);
 
+      // linhas da pista (no centro visual)
       ctx.fillStyle="#fff";
       for(let i=0;i<canvas.height;i+=40){
         ctx.fillRect(canvas.width/2-5,i,10,20);
       }
 
-      ctx.drawImage(carroImg,carro.x,carro.y,carro.w,carro.h);
-
-      for(let o of obstaculos){
-        ctx.drawImage(coracaoImg,o.x,o.y,o.w,o.h);
+      // carro
+      if (carroImg.complete) {
+        ctx.drawImage(carroImg,carro.x,carro.y,carro.w,carro.h);
+      } else {
+        // fallback se imagem não carregou
+        ctx.fillStyle = "#0af";
+        ctx.fillRect(carro.x, carro.y, carro.w, carro.h);
       }
 
+      // corações
+      for(let o of obstaculos){
+        if (coracaoImg.complete) {
+          ctx.drawImage(coracaoImg,o.x,o.y,o.w,o.h);
+        } else {
+          ctx.fillStyle = "#f55";
+          ctx.fillRect(o.x,o.y,o.w,o.h);
+        }
+      }
+
+      // HUD: pontos
       ctx.fillStyle="yellow";
       ctx.font="20px Arial";
       ctx.fillText("Pontos: "+pontos,10,30);
-      ctx.fillText("Corações: "+coracoesCriados,10,55);
+      ctx.fillText(`Meta: ${targetHits}`,10,55);
     }
 
     function loop(){
@@ -222,15 +272,17 @@
       if(!gameOver) requestAnimationFrame(loop);
     }
 
+    // inicia o loop (corações só após 5s)
     loop();
-    setTimeout(()=>{ jogoAtivo=true; },5000);
+    setTimeout(()=>{ jogoAtivo=true; },3000);
 
+    // surpresa final
     function surpresaFinal(){
       document.body.innerHTML=`
         <div class="final">
           <h1>💖 Surpresa Final 💖</h1>
           <p>
-            Você venceu pegou todos os 23 corações!  
+            Você venceu pegou todos os ${targetHits} corações!  
             <br><br>
             Jana, você é incrível. Esse jogo foi só um jeitinho bobo de te mostrar o quanto eu penso em você.  
             <br><br>
